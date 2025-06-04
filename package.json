@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "this is our first Major project",
   "license": "ISC",
-  "author": "ayush sahu",
+  "author": "Gaurank Sharma",
   "type": "module",
   "main": "index.js",
   "scripts": {
