@@ -16,28 +16,45 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Allowed origins for CORS
+// Allowed origins for CORS (frontend URLs)
 const allowedOrigins = [
-  "https://beebark-feed.vercel.app",
-  "http://localhost:5173"
+  "https://beebark-feed.vercel.app",  // Vercel frontend
 ];
 
-// CORS middleware with origin function to check whitelist
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like curl, Postman) or from allowed origins
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-  })
-);
+// CORS options with origin check and debug logging
+const corsOptions = {
+  origin: function (origin, callback) {
+    console.log("Incoming request Origin:", origin);
+    // Allow requests with no origin like Postman or server-to-server calls
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+};
 
-// Socket.io server with CORS config matching allowed origins
+// Preflight OPTIONS requests must be handled with CORS headers
+app.options("*", cors(corsOptions));
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Built-in middleware to parse JSON bodies
+app.use(express.json());
+
+// Parse cookies
+app.use(cookieParser());
+
+// API Routes
+app.use("/api/auth", authRouter);
+app.use("/api/user", userRouter);
+app.use("/api/post", postRouter);
+app.use("/api/connection", connectionRouter);
+app.use("/api/notification", notificationRouter);
+
+// Socket.io server with CORS config
 export const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
@@ -46,30 +63,19 @@ export const io = new Server(server, {
   },
 });
 
-// Middleware for parsing JSON and cookies
-app.use(express.json());
-app.use(cookieParser());
-
-// API routes
-app.use("/api/auth", authRouter);
-app.use("/api/user", userRouter);
-app.use("/api/post", postRouter);
-app.use("/api/connection", connectionRouter);
-app.use("/api/notification", notificationRouter);
-
-// Map to keep track of userId to socketId
+// Map userId to socketId for real-time features
 export const userSocketMap = new Map();
 
 io.on("connection", (socket) => {
   console.log("✅ New client connected:", socket.id);
 
-  // Client emits 'register' with their userId
+  // Client should emit: socket.emit("register", userId)
   socket.on("register", (userId) => {
     userSocketMap.set(userId, socket.id);
     console.log("✅ User registered:", userId, socket.id);
   });
 
-  // Clean up when socket disconnects
+  // Handle disconnection
   socket.on("disconnect", () => {
     for (const [userId, socketId] of userSocketMap.entries()) {
       if (socketId === socket.id) {
@@ -81,7 +87,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// Start server and connect to database
+// Connect to database and start server
 const port = process.env.PORT || 5000;
 server.listen(port, () => {
   connectDb();
