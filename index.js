@@ -16,13 +16,28 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// ✅ Use exact frontend URL(s) for CORS
+// Allowed origins for CORS
 const allowedOrigins = [
-  "http://localhost:5173",                  // Local dev
-  "https://beebark-feed.vercel.app",       // Frontend hosted on Vercel
+  "https://beebark-feed.vercel.app",
+  "http://localhost:5173"
 ];
 
-// ✅ Socket.io server with proper CORS config
+// CORS middleware with origin function to check whitelist
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like curl, Postman) or from allowed origins
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
+// Socket.io server with CORS config matching allowed origins
 export const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
@@ -31,36 +46,30 @@ export const io = new Server(server, {
   },
 });
 
-// ✅ Middleware
+// Middleware for parsing JSON and cookies
 app.use(express.json());
 app.use(cookieParser());
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-  })
-);
 
-// ✅ API Routes
+// API routes
 app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
 app.use("/api/post", postRouter);
 app.use("/api/connection", connectionRouter);
 app.use("/api/notification", notificationRouter);
 
-// ✅ Socket user map
+// Map to keep track of userId to socketId
 export const userSocketMap = new Map();
 
 io.on("connection", (socket) => {
   console.log("✅ New client connected:", socket.id);
 
-  // Client should emit: socket.emit("register", userId)
+  // Client emits 'register' with their userId
   socket.on("register", (userId) => {
     userSocketMap.set(userId, socket.id);
     console.log("✅ User registered:", userId, socket.id);
   });
 
-  // Handle disconnection
+  // Clean up when socket disconnects
   socket.on("disconnect", () => {
     for (const [userId, socketId] of userSocketMap.entries()) {
       if (socketId === socket.id) {
@@ -72,7 +81,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// ✅ Start server
+// Start server and connect to database
 const port = process.env.PORT || 5000;
 server.listen(port, () => {
   connectDb();
