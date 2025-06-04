@@ -16,20 +16,22 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Allowed origins for CORS and socket
+// ✅ Use exact frontend URL(s) for CORS
 const allowedOrigins = [
-  "http://localhost:5173",                  // local dev frontend
-  "https://beebark-feed.vercel.app"         // production frontend on Vercel
+  "http://localhost:5173",                  // Local dev
+  "https://beebark-feed.vercel.app",       // Frontend hosted on Vercel
 ];
 
+// ✅ Socket.io server with proper CORS config
 export const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
     credentials: true,
+    methods: ["GET", "POST"],
   },
 });
 
-// Middleware
+// ✅ Middleware
 app.use(express.json());
 app.use(cookieParser());
 app.use(
@@ -39,38 +41,40 @@ app.use(
   })
 );
 
-// API Routes
+// ✅ API Routes
 app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
 app.use("/api/post", postRouter);
 app.use("/api/connection", connectionRouter);
 app.use("/api/notification", notificationRouter);
 
-// Socket user map to track connected users
+// ✅ Socket user map
 export const userSocketMap = new Map();
 
 io.on("connection", (socket) => {
-  console.log("New client connected:", socket.id);
+  console.log("✅ New client connected:", socket.id);
 
+  // Client should emit: socket.emit("register", userId)
   socket.on("register", (userId) => {
     userSocketMap.set(userId, socket.id);
-    console.log("User registered:", userId, socket.id);
+    console.log("✅ User registered:", userId, socket.id);
   });
 
+  // Handle disconnection
   socket.on("disconnect", () => {
-    // Remove user from map on disconnect
     for (const [userId, socketId] of userSocketMap.entries()) {
       if (socketId === socket.id) {
         userSocketMap.delete(userId);
-        console.log("User disconnected:", userId, socket.id);
+        console.log("❌ User disconnected:", userId);
         break;
       }
     }
   });
 });
 
+// ✅ Start server
 const port = process.env.PORT || 5000;
 server.listen(port, () => {
   connectDb();
-  console.log(`Server started on port ${port}`);
+  console.log(`🚀 Server started on port ${port}`);
 });
